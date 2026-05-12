@@ -4,13 +4,34 @@ import datetime
 import math
 
 # ==========================================
-# 1. KONFIGURATION & STYLING
+# 1. KONFIGURATION & DESIGN
 # ==========================================
-st.set_page_config(page_title="Football Stats Master", layout="wide")
-st.title("🎯 Football Corner & Card Predictor")
+st.set_page_config(
+    page_title="Pro Football Predictor",
+    page_icon="⚽",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS för att göra tabellerna mer lättlästa
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f5f7f9;
+    }
+    .stTable {
+        font-size: 12px;
+    }
+    div[data-testid="stExpander"] {
+        background-color: white;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. NAMN-TVÄTTMASKINEN
+# 2. LOGIK (Samma stabila motor som förut)
 # ==========================================
 def normalize_name(name):
     n = str(name).lower().strip()
@@ -24,10 +45,7 @@ def normalize_name(name):
     if "barcelona" in n: return "Barcelona"
     return n.title()
 
-# ==========================================
-# 3. RÅDATA-MOTORN (Med Streamlit Cache)
-# ==========================================
-@st.cache_data(ttl=3600) # Sparar datan i en timme
+@st.cache_data(ttl=3600)
 def get_corner_card_data():
     now = datetime.datetime.now()
     season_str = f"{str(now.year-1)[-2:]}{str(now.year)[-2:]}" if now.month < 8 else f"{str(now.year)[-2:]}{str(now.year+1)[-2:]}"
@@ -57,17 +75,14 @@ def get_corner_card_data():
             for _, row in df.iterrows():
                 h_val = row.get('Home') if pd.notna(row.get('Home')) else row.get('HomeTeam')
                 a_val = row.get('Away') if pd.notna(row.get('Away')) else row.get('AwayTeam')
-                
                 if pd.isna(h_val) or pd.isna(a_val): continue
                 
-                h = normalize_name(str(h_val))
-                a = normalize_name(str(a_val))
+                h, a = normalize_name(str(h_val)), normalize_name(str(a_val))
                 init_team(h); init_team(a)
 
-                hc = row.get('HC', 0)
-                ac = row.get('AC', 0)
-                hy = row.get('HY', 0); hr = row.get('HR', 0)
-                ay = row.get('AY', 0); ar = row.get('AR', 0)
+                hc, ac = row.get('HC', 0), row.get('AC', 0)
+                hy, hr = row.get('HY', 0), row.get('HR', 0)
+                ay, ar = row.get('AY', 0), row.get('AR', 0)
                 
                 try:
                     team_stats[h]['corners_for'].append(float(hc)); team_stats[h]['corners_against'].append(float(ac))
@@ -77,18 +92,13 @@ def get_corner_card_data():
                 except: pass
         except: pass
 
-    final_stats = {team: {
+    return {t: {
         "avg_corners_for": round(sum(d['corners_for'])/len(d['corners_for']), 2),
         "avg_corners_against": round(sum(d['corners_against'])/len(d['corners_against']), 2),
         "avg_cards_for": round(sum(d['cards_for'])/len(d['cards_for']), 2),
         "avg_cards_against": round(sum(d['cards_against'])/len(d['cards_against']), 2)
-    } for team, d in team_stats.items() if len(d['corners_for']) > 0}
-    
-    return final_stats
+    } for t, d in team_stats.items() if len(d['corners_for']) > 0}
 
-# ==========================================
-# 4. MATEMATIKFUNKTIONER
-# ==========================================
 def poisson_probability(lam, k):
     return (lam**k * math.exp(-lam)) / math.factorial(k)
 
@@ -99,57 +109,102 @@ def format_odds(lam, line):
     return f"{round(prob, 1)}% ({round(100/prob, 2)})"
 
 # ==========================================
-# 5. STREAMLIT UI
+# 3. ANVÄNDARGRÄNSSNITT (UI)
 # ==========================================
-input_text = st.text_area("Skriv in matcher (t.ex: Arsenal - Liverpool)", height=150)
-calculate_btn = st.button("Generera Master-Tabell 🚀")
 
-if calculate_btn and input_text:
+with st.sidebar:
+    st.header("⚙️ Inställningar")
+    st.write("Skriv in dina matcher nedan. En per rad.")
+    input_text = st.text_area("Matcher:", value="Arsenal - Everton\nReal Madrid - Barcelona", height=200)
+    st.info("Format: Hemmalag - Bortalag")
+    calculate_btn = st.button("Kör Analys 🚀", use_container_width=True)
+
+st.title("⚽ Master Stats Predictor")
+st.markdown("Baserat på säsongsdata och Poisson-fördelning.")
+
+if calculate_btn:
     stats = get_corner_card_data()
     lines = [l.strip() for l in input_text.split('\n') if " - " in l]
     
     res_corners, res_cards, check_data = [], [], []
 
     for line in lines:
-        h_raw, a_raw = line.split(" - ")
-        h, a = normalize_name(h_raw), normalize_name(a_raw)
-        
-        # Check team existence
-        for team in [h, a]:
-            if team in stats:
-                s = stats[team]
-                check_data.append({"Lag": team, "Hörnor F/E": f"{s['avg_corners_for']}/{s['avg_corners_against']}", "Status": "✔️ OK"})
+        try:
+            h_raw, a_raw = line.split(" - ")
+            h, a = normalize_name(h_raw), normalize_name(a_raw)
+            
+            if h in stats and a in stats:
+                hs, ast = stats[h], stats[a]
+                
+                # Hörnor
+                exp_hc = (hs['avg_corners_for'] + ast['avg_corners_against']) / 2
+                exp_ac = (ast['avg_corners_for'] + hs['avg_corners_against']) / 2
+                exp_tot_c = exp_hc + exp_ac
+                
+                # Kort
+                exp_h_card = (hs['avg_cards_for'] + ast['avg_cards_against']) / 2
+                exp_a_card = (ast['avg_cards_for'] + hs['avg_cards_against']) / 2
+                exp_tot_card = exp_h_card + exp_a_card
+
+                # --- ÅTERSTÄLL ALLA KOLUMNER ---
+                res_corners.append({
+                    'Match': f"{h} vs {a}",
+                    'Total Exp': round(exp_tot_c, 1),
+                    '>8.5': format_odds(exp_tot_c, 8.5),
+                    '>9.5': format_odds(exp_tot_c, 9.5),
+                    '>10.5': format_odds(exp_tot_c, 10.5),
+                    f'H ({h})': round(exp_hc, 1),
+                    '>H 3.5': format_odds(exp_hc, 3.5),
+                    '>H 4.5': format_odds(exp_hc, 4.5),
+                    '>H 5.5': format_odds(exp_hc, 5.5),
+                    f'B ({a})': round(exp_ac, 1),
+                    '>B 3.5': format_odds(exp_ac, 3.5),
+                    '>B 4.5': format_odds(exp_ac, 4.5),
+                    '>B 5.5': format_odds(exp_ac, 5.5)
+                })
+                
+                res_cards.append({
+                    'Match': f"{h} vs {a}",
+                    'Total Exp': round(exp_tot_card, 1),
+                    '>3.5': format_odds(exp_tot_card, 3.5),
+                    '>4.5': format_odds(exp_tot_card, 4.5),
+                    '>5.5': format_odds(exp_tot_card, 5.5),
+                    f'H ({h})': round(exp_h_card, 1),
+                    '>H 1.5': format_odds(exp_h_card, 1.5),
+                    '>H 2.5': format_odds(exp_h_card, 2.5),
+                    '>H 3.5': format_odds(exp_h_card, 3.5),
+                    f'B ({a})': round(exp_a_card, 1),
+                    '>B 1.5': format_odds(exp_a_card, 1.5),
+                    '>B 2.5': format_odds(exp_a_card, 2.5),
+                    '>B 3.5': format_odds(exp_a_card, 3.5)
+                })
+                
+                check_data.append({"Lag": h, "Status": "✔️ OK", "Data": stats[h]})
+                check_data.append({"Lag": a, "Status": "✔️ OK", "Data": stats[a]})
             else:
-                check_data.append({"Lag": team, "Status": "❌ Saknas"})
+                if h not in stats: check_data.append({"Lag": h, "Status": "❌ Saknas", "Data": "-"})
+                if a not in stats: check_data.append({"Lag": a, "Status": "❌ Saknas", "Data": "-"})
+        except Exception as e:
+            st.error(f"Kunde inte tolka raden: {line}")
 
-        if h in stats and a in stats:
-            hs, ast = stats[h], stats[a]
-            exp_hc = (hs['avg_corners_for'] + ast['avg_corners_against']) / 2
-            exp_ac = (ast['avg_corners_for'] + hs['avg_corners_against']) / 2
-            
-            exp_h_card = (hs['avg_cards_for'] + ast['avg_cards_against']) / 2
-            exp_a_card = (ast['avg_cards_for'] + hs['avg_cards_against']) / 2
+    # --- VISUALISERING ---
+    tab1, tab2, tab3 = st.tabs(["🎯 HÖRN-ANALYS", "🟨 KORT-ANALYS", "🔍 DATAKONTROLL"])
+    
+    with tab1:
+        if res_corners:
+            st.subheader("Sannolikhet & Odds för Hörnor")
+            st.dataframe(pd.DataFrame(res_corners), use_container_width=True)
+        else:
+            st.warning("Ingen data hittades för de angivna lagen.")
 
-            res_corners.append({
-                'Match': f"{h} vs {a}",
-                'Tot Exp': round(exp_hc + exp_ac, 1),
-                '>8.5': format_odds(exp_hc + exp_ac, 8.5),
-                '>9.5': format_odds(exp_hc + exp_ac, 9.5),
-                f'{h} >4.5': format_odds(exp_hc, 4.5),
-                f'{a} >4.5': format_odds(exp_ac, 4.5)
-            })
-            
-            res_cards.append({
-                'Match': f"{h} vs {a}",
-                'Tot Exp': round(exp_h_card + exp_a_card, 1),
-                '>3.5': format_odds(exp_h_card + exp_a_card, 3.5),
-                '>4.5': format_odds(exp_h_card + exp_a_card, 4.5),
-                f'{h} >1.5': format_odds(exp_h_card, 1.5),
-                f'{a} >1.5': format_odds(exp_a_card, 1.5)
-            })
+    with tab2:
+        if res_cards:
+            st.subheader("Sannolikhet & Odds för Kort")
+            st.dataframe(pd.DataFrame(res_cards), use_container_width=True)
 
-    # Display results in tabs
-    tab1, tab2, tab3 = st.tabs(["🎯 Hörnor", "🟨 Kort", "🔍 Datakontroll"])
-    with tab1: st.table(pd.DataFrame(res_corners))
-    with tab2: st.table(pd.DataFrame(res_cards))
-    with tab3: st.dataframe(pd.DataFrame(check_data))
+    with tab3:
+        st.subheader("Hämtad Statistik")
+        st.write(pd.DataFrame(check_data))
+
+else:
+    st.info("Välkommen! Skriv in dina matcher i sidomenyn till vänster och klicka på 'Kör Analys'.")
