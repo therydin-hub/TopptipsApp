@@ -23,12 +23,6 @@ st.markdown("""
         background-color: white;
         border-radius: 10px;
     }
-
-    .stDataFrame {
-        background-color: white;
-        border-radius: 10px;
-        padding: 10px;
-    }
     </style>
 """, unsafe_allow_html=True)
 
