@@ -3,191 +3,222 @@ import pandas as pd
 import datetime
 import math
 
-# ==========================================
-# 1. KONFIGURATION & DESIGN
-# ==========================================
+# =========================================================
+# PAGE CONFIG
+# =========================================================
 st.set_page_config(
-    page_title="Pro Football Predictor",
+    page_title="Master Football Predictor",
     page_icon="⚽",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
+# =========================================================
+# CUSTOM CSS
+# =========================================================
 st.markdown("""
-    <style>
-    .main {
-        background-color: #f5f7f9;
-    }
+<style>
 
-    div[data-testid="stExpander"] {
-        background-color: white;
-        border-radius: 10px;
-    }
-    </style>
+.block-container {
+    padding-top: 2rem;
+}
+
+.match-card {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 14px;
+    margin-bottom: 25px;
+    border: 1px solid #e6e6e6;
+}
+
+.section-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    margin-top: 15px;
+}
+
+.market-box {
+    background: #f8f9fb;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.market-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #ececec;
+}
+
+.market-line:last-child {
+    border-bottom: none;
+}
+
+.big-title {
+    font-size: 30px;
+    font-weight: 800;
+    margin-bottom: 5px;
+}
+
+.sub-title {
+    color: #777;
+    margin-bottom: 25px;
+}
+
+hr {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+</style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. LIGAKONFIGURATION
-# ==========================================
+# =========================================================
+# SEASON STRING
+# =========================================================
 now = datetime.datetime.now()
 
-# Skapar säsongsformatet (t.ex. 2526 för säsongen 2025/2026)
 season_str = (
     f"{str(now.year-1)[-2:]}{str(now.year)[-2:]}"
     if now.month < 8
     else f"{str(now.year)[-2:]}{str(now.year+1)[-2:]}"
 )
 
+# =========================================================
+# LEAGUES
+# =========================================================
 LEAGUE_MAP = {
     "England: Premier League": f"https://www.football-data.co.uk/mmz4281/{season_str}/E0.csv",
     "England: Championship": f"https://www.football-data.co.uk/mmz4281/{season_str}/E1.csv",
-    "England: League 1": f"https://www.football-data.co.uk/mmz4281/{season_str}/E2.csv",
-    "England: League 2": f"https://www.football-data.co.uk/mmz4281/{season_str}/E3.csv",
-    "England: National League": f"https://www.football-data.co.uk/mmz4281/{season_str}/EC.csv",
 
-    "Spanien: La Liga 1": f"https://www.football-data.co.uk/mmz4281/{season_str}/SP1.csv",
-    "Spanien: La Liga 2": f"https://www.football-data.co.uk/mmz4281/{season_str}/SP2.csv",
+    "Spain: La Liga": f"https://www.football-data.co.uk/mmz4281/{season_str}/SP1.csv",
 
-    "Italien: Serie A": f"https://www.football-data.co.uk/mmz4281/{season_str}/I1.csv",
-    "Italien: Serie B": f"https://www.football-data.co.uk/mmz4281/{season_str}/I2.csv",
+    "Italy: Serie A": f"https://www.football-data.co.uk/mmz4281/{season_str}/I1.csv",
 
-    "Tyskland: Bundesliga 1": f"https://www.football-data.co.uk/mmz4281/{season_str}/D1.csv",
-    "Tyskland: Bundesliga 2": f"https://www.football-data.co.uk/mmz4281/{season_str}/D2.csv",
+    "Germany: Bundesliga": f"https://www.football-data.co.uk/mmz4281/{season_str}/D1.csv",
 
-    "Frankrike: Ligue 1": f"https://www.football-data.co.uk/mmz4281/{season_str}/F1.csv",
-    "Frankrike: Ligue 2": f"https://www.football-data.co.uk/mmz4281/{season_str}/F2.csv",
+    "France: Ligue 1": f"https://www.football-data.co.uk/mmz4281/{season_str}/F1.csv",
 
-    "Holland: Eredivisie": f"https://www.football-data.co.uk/mmz4281/{season_str}/N1.csv",
+    "Netherlands: Eredivisie": f"https://www.football-data.co.uk/mmz4281/{season_str}/N1.csv",
 
-    "Belgien: Jupiler League": f"https://www.football-data.co.uk/mmz4281/{season_str}/B1.csv",
+    "Portugal: Liga Portugal": f"https://www.football-data.co.uk/mmz4281/{season_str}/P1.csv",
 
-    "Portugal: Liga I": f"https://www.football-data.co.uk/mmz4281/{season_str}/P1.csv",
+    "Turkey: Super Lig": f"https://www.football-data.co.uk/mmz4281/{season_str}/T1.csv",
 
-    "Turkiet: Süper Lig": f"https://www.football-data.co.uk/mmz4281/{season_str}/T1.csv",
+    "Sweden: Allsvenskan": "https://www.football-data.co.uk/new/SWE.csv",
 
-    "Sverige: Allsvenskan": "https://www.football-data.co.uk/new/SWE.csv",
-
-    "Danmark: Superliga": "https://www.football-data.co.uk/new/DNK.csv"
+    "Denmark: Superliga": "https://www.football-data.co.uk/new/DNK.csv"
 }
 
-# ==========================================
-# 3. LOGIK & BERÄKNINGAR
-# ==========================================
+# =========================================================
+# CACHE DATA
+# =========================================================
 @st.cache_data(ttl=3600)
 def get_league_stats(url):
 
-    try:
-        df = pd.read_csv(
-            url,
-            encoding='unicode_escape',
-            on_bad_lines='skip'
-        )
+    df = pd.read_csv(
+        url,
+        encoding='unicode_escape',
+        on_bad_lines='skip'
+    )
 
-        # Specialhantering för Sverige/Danmark
-        if 'SWE.csv' in url or 'DNK.csv' in url:
-            df['parsed_date'] = pd.to_datetime(
-                df['Date'],
-                dayfirst=True,
-                errors='coerce'
-            )
+    team_stats = {}
 
-            df = df[df['parsed_date'].dt.year == datetime.datetime.now().year]
+    for _, row in df.iterrows():
 
-        team_stats = {}
+        h = row.get('HomeTeam')
+        a = row.get('AwayTeam')
 
-        for _, row in df.iterrows():
+        if pd.isna(h) or pd.isna(a):
+            continue
 
-            h_val = (
-                row.get('Home')
-                if pd.notna(row.get('Home'))
-                else row.get('HomeTeam')
-            )
+        h = str(h).strip()
+        a = str(a).strip()
 
-            a_val = (
-                row.get('Away')
-                if pd.notna(row.get('Away'))
-                else row.get('AwayTeam')
-            )
+        for team in [h, a]:
 
-            if pd.isna(h_val) or pd.isna(a_val):
-                continue
+            if team not in team_stats:
 
-            h = str(h_val).strip()
-            a = str(a_val).strip()
+                team_stats[team] = {
+                    'corners_for': [],
+                    'corners_against': [],
 
-            for team in [h, a]:
-                if team not in team_stats:
-                    team_stats[team] = {
-                        'corners_for': [],
-                        'corners_against': [],
-                        'cards_for': [],
-                        'cards_against': []
-                    }
+                    'cards_for': [],
+                    'cards_against': [],
 
-            try:
-                hc = float(row.get('HC', 0))
-                ac = float(row.get('AC', 0))
+                    'goals_for': [],
+                    'goals_against': []
+                }
 
-                hy = float(row.get('HY', 0))
-                hr = float(row.get('HR', 0))
+        try:
 
-                ay = float(row.get('AY', 0))
-                ar = float(row.get('AR', 0))
+            # CORNERS
+            hc = float(row.get('HC', 0))
+            ac = float(row.get('AC', 0))
 
-                # Hörnor
-                team_stats[h]['corners_for'].append(hc)
-                team_stats[h]['corners_against'].append(ac)
+            # CARDS
+            hy = float(row.get('HY', 0))
+            hr = float(row.get('HR', 0))
 
-                team_stats[a]['corners_for'].append(ac)
-                team_stats[a]['corners_against'].append(hc)
+            ay = float(row.get('AY', 0))
+            ar = float(row.get('AR', 0))
 
-                # Kort
-                team_stats[h]['cards_for'].append(hy + hr)
-                team_stats[h]['cards_against'].append(ay + ar)
+            # GOALS
+            hg = float(row.get('FTHG', 0))
+            ag = float(row.get('FTAG', 0))
 
-                team_stats[a]['cards_for'].append(ay + ar)
-                team_stats[a]['cards_against'].append(hy + hr)
+            # HOME
+            team_stats[h]['corners_for'].append(hc)
+            team_stats[h]['corners_against'].append(ac)
 
-            except:
-                continue
+            team_stats[h]['cards_for'].append(hy + hr)
+            team_stats[h]['cards_against'].append(ay + ar)
 
-        final_stats = {}
+            team_stats[h]['goals_for'].append(hg)
+            team_stats[h]['goals_against'].append(ag)
 
-        for team, data in team_stats.items():
+            # AWAY
+            team_stats[a]['corners_for'].append(ac)
+            team_stats[a]['corners_against'].append(hc)
 
-            if len(data['corners_for']) == 0:
-                continue
+            team_stats[a]['cards_for'].append(ay + ar)
+            team_stats[a]['cards_against'].append(hy + hr)
 
-            final_stats[team] = {
-                "avg_corners_for": round(
-                    sum(data['corners_for']) / len(data['corners_for']), 2
-                ),
+            team_stats[a]['goals_for'].append(ag)
+            team_stats[a]['goals_against'].append(hg)
 
-                "avg_corners_against": round(
-                    sum(data['corners_against']) / len(data['corners_against']), 2
-                ),
+        except:
+            continue
 
-                "avg_cards_for": round(
-                    sum(data['cards_for']) / len(data['cards_for']), 2
-                ),
+    final_stats = {}
 
-                "avg_cards_against": round(
-                    sum(data['cards_against']) / len(data['cards_against']), 2
-                )
-            }
+    for team, d in team_stats.items():
 
-        return final_stats
+        if len(d['corners_for']) == 0:
+            continue
 
-    except Exception as e:
-        st.error(f"Fel vid hämtning av data: {e}")
-        return {}
+        final_stats[team] = {
 
+            "avg_corners_for": round(sum(d['corners_for']) / len(d['corners_for']), 2),
+            "avg_corners_against": round(sum(d['corners_against']) / len(d['corners_against']), 2),
 
+            "avg_cards_for": round(sum(d['cards_for']) / len(d['cards_for']), 2),
+            "avg_cards_against": round(sum(d['cards_against']) / len(d['cards_against']), 2),
+
+            "avg_goals_for": round(sum(d['goals_for']) / len(d['goals_for']), 2),
+            "avg_goals_against": round(sum(d['goals_against']) / len(d['goals_against']), 2),
+        }
+
+    return final_stats
+
+# =========================================================
+# POISSON
+# =========================================================
 def poisson_probability(lam, k):
     return (lam**k * math.exp(-lam)) / math.factorial(k)
 
-
-def format_odds(lam, line):
+def calc_over_probability(lam, line):
 
     prob_under_or_equal = sum(
         poisson_probability(lam, k)
@@ -196,205 +227,223 @@ def format_odds(lam, line):
 
     prob = (1 - prob_under_or_equal) * 100
 
-    if prob <= 0.5:
-        return "0% (-)"
+    if prob <= 0:
+        return "0%"
 
     odds = round(100 / prob, 2)
 
-    return f"{round(prob,1)}% ({odds})"
+    return f"{round(prob,1)}%  |  Odds {odds}"
 
+# =========================================================
+# SESSION STATE
+# =========================================================
+if "matches" not in st.session_state:
+    st.session_state.matches = []
 
-# ==========================================
-# 4. SIDOMENY
-# ==========================================
+# =========================================================
+# HEADER
+# =========================================================
+st.markdown('<div class="big-title">⚽ Master Football Predictor</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Professional betting analytics dashboard</div>', unsafe_allow_html=True)
+
+# =========================================================
+# SIDEBAR
+# =========================================================
 with st.sidebar:
 
-    st.header("⚙️ Matchval")
+    st.header("➕ Add Match")
 
-    league_name = st.selectbox(
-        "1. Välj Liga:",
+    league = st.selectbox(
+        "League",
         list(LEAGUE_MAP.keys())
     )
 
-    stats = get_league_stats(LEAGUE_MAP[league_name])
+    stats = get_league_stats(LEAGUE_MAP[league])
 
-    team_list = sorted(list(stats.keys()))
+    teams = sorted(list(stats.keys()))
 
-    if team_list:
+    home_team = st.selectbox(
+        "Home Team",
+        teams,
+        key="home"
+    )
 
-        h_team = st.selectbox(
-            "2. Hemmalag:",
-            team_list,
-            index=0
-        )
+    away_team = st.selectbox(
+        "Away Team",
+        teams,
+        index=1 if len(teams) > 1 else 0,
+        key="away"
+    )
 
-        a_team = st.selectbox(
-            "3. Bortalag:",
-            team_list,
-            index=1 if len(team_list) > 1 else 0
-        )
+    if st.button("Add Match", use_container_width=True):
 
-        calculate_btn = st.button(
-            "Kör Analys 🚀",
-            use_container_width=True
-        )
+        st.session_state.matches.append({
+            "league": league,
+            "home": home_team,
+            "away": away_team
+        })
 
-    else:
-        st.error("Kunde inte hämta lag för denna liga.")
-        calculate_btn = False
+# =========================================================
+# MARKET RENDER
+# =========================================================
+def render_market(title, expected, lines):
 
+    st.markdown(
+        f'<div class="section-title">{title}</div>',
+        unsafe_allow_html=True
+    )
 
-# ==========================================
-# 5. HUVUDTITEL
-# ==========================================
-st.title("⚽ Master Stats Predictor")
+    st.markdown(
+        f'<div class="market-box"><b>Expected:</b> {round(expected,2)}</div>',
+        unsafe_allow_html=True
+    )
 
-st.caption(
-    f"Analyserar {league_name} baserat på aktuell säsongsdata."
-)
+    for line in lines:
 
-# ==========================================
-# 6. ANALYS
-# ==========================================
-if calculate_btn:
+        result = calc_over_probability(expected, line)
 
-    try:
+        st.markdown(f"""
+        <div class="market-line">
+            <div>Over {line}</div>
+            <div>{result}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        hs = stats[h_team]
-        ast = stats[a_team]
+# =========================================================
+# DISPLAY MATCHES
+# =========================================================
+if len(st.session_state.matches) == 0:
 
-        # ======================================
-        # HÖRNBERÄKNINGAR
-        # ======================================
-        exp_hc = (
-            hs['avg_corners_for'] +
-            ast['avg_corners_against']
-        ) / 2
+    st.info("Add matches from the sidebar to begin.")
 
-        exp_ac = (
-            ast['avg_corners_for'] +
-            hs['avg_corners_against']
-        ) / 2
+else:
 
-        exp_tot_c = exp_hc + exp_ac
+    remove_index = None
 
-        # ======================================
-        # KORTBERÄKNINGAR
-        # ======================================
-        exp_h_card = (
-            hs['avg_cards_for'] +
-            ast['avg_cards_against']
-        ) / 2
+    for idx, match in enumerate(st.session_state.matches):
 
-        exp_a_card = (
-            ast['avg_cards_for'] +
-            hs['avg_cards_against']
-        ) / 2
+        stats = get_league_stats(LEAGUE_MAP[match['league']])
 
-        exp_tot_card = exp_h_card + exp_a_card
+        hs = stats[match['home']]
+        ast = stats[match['away']]
 
-        # ======================================
-        # TABS
-        # ======================================
-        tab1, tab2, tab3 = st.tabs([
-            "🎯 HÖRN-ANALYS",
-            "🟨 KORT-ANALYS",
-            "📊 LAG-STATISTIK"
-        ])
+        # =================================================
+        # EXPECTED VALUES
+        # =================================================
 
-        # ======================================
-        # HÖRNOR
-        # ======================================
-        with tab1:
+        # CORNERS
+        exp_hc = (hs['avg_corners_for'] + ast['avg_corners_against']) / 2
+        exp_ac = (ast['avg_corners_for'] + hs['avg_corners_against']) / 2
+        exp_total_corners = exp_hc + exp_ac
 
-            res_corners = [{
-                'Match': f"{h_team} vs {a_team}",
+        # CARDS
+        exp_hcards = (hs['avg_cards_for'] + ast['avg_cards_against']) / 2
+        exp_acards = (ast['avg_cards_for'] + hs['avg_cards_against']) / 2
+        exp_total_cards = exp_hcards + exp_acards
 
-                'Total Exp': round(exp_tot_c, 1),
+        # GOALS
+        exp_hgoals = (hs['avg_goals_for'] + ast['avg_goals_against']) / 2
+        exp_agoals = (ast['avg_goals_for'] + hs['avg_goals_against']) / 2
+        exp_total_goals = exp_hgoals + exp_agoals
 
-                '>8.5': format_odds(exp_tot_c, 8.5),
-                '>9.5': format_odds(exp_tot_c, 9.5),
-                '>10.5': format_odds(exp_tot_c, 10.5),
-                '>11.5': format_odds(exp_tot_c, 11.5),
+        # =================================================
+        # MATCH CARD
+        # =================================================
+        with st.container():
 
-                f'H ({h_team})': round(exp_hc, 1),
+            st.markdown('<div class="match-card">', unsafe_allow_html=True)
 
-                '>H 3.5': format_odds(exp_hc, 3.5),
-                '>H 4.5': format_odds(exp_hc, 4.5),
-                '>H 5.5': format_odds(exp_hc, 5.5),
+            col1, col2 = st.columns([8,1])
 
-                f'B ({a_team})': round(exp_ac, 1),
+            with col1:
 
-                '>B 3.5': format_odds(exp_ac, 3.5),
-                '>B 4.5': format_odds(exp_ac, 4.5),
-                '>B 5.5': format_odds(exp_ac, 5.5)
-            }]
+                st.markdown(f"""
+                ### {match['home']} vs {match['away']}
+                **{match['league']}**
+                """)
 
-            st.dataframe(
-                pd.DataFrame(res_corners),
-                use_container_width=True,
-                hide_index=True
-            )
+            with col2:
 
-        # ======================================
-        # KORT
-        # ======================================
-        with tab2:
+                if st.button("❌", key=f"remove_{idx}"):
 
-            res_cards = [{
-                'Match': f"{h_team} vs {a_team}",
+                    remove_index = idx
 
-                'Total Exp': round(exp_tot_card, 1),
+            st.divider()
 
-                '>3.5': format_odds(exp_tot_card, 3.5),
-                '>4.5': format_odds(exp_tot_card, 4.5),
-                '>5.5': format_odds(exp_tot_card, 5.5),
-                '>6.5': format_odds(exp_tot_card, 6.5),
+            # =================================================
+            # MARKETS
+            # =================================================
+            c1, c2, c3 = st.columns(3)
 
-                f'H ({h_team})': round(exp_h_card, 1),
+            # CORNERS
+            with c1:
 
-                '>H 0.5': format_odds(exp_h_card, 0.5),
-                '>H 1.5': format_odds(exp_h_card, 1.5),
-                '>H 2.5': format_odds(exp_h_card, 2.5),
+                render_market(
+                    "🎯 Corners",
+                    exp_total_corners,
+                    [8.5, 9.5, 10.5, 11.5]
+                )
 
-                f'B ({a_team})': round(exp_a_card, 1),
+            # CARDS
+            with c2:
 
-                '>B 0.5': format_odds(exp_a_card, 0.5),
-                '>B 1.5': format_odds(exp_a_card, 1.5),
-                '>B 2.5': format_odds(exp_a_card, 2.5)
-            }]
+                render_market(
+                    "🟨 Cards",
+                    exp_total_cards,
+                    [3.5, 4.5, 5.5, 6.5]
+                )
 
-            st.dataframe(
-                pd.DataFrame(res_cards),
-                use_container_width=True,
-                hide_index=True
-            )
+            # GOALS
+            with c3:
 
-        # ======================================
-        # LAGSTATISTIK
-        # ======================================
-        with tab3:
+                render_market(
+                    "⚽ Goals",
+                    exp_total_goals,
+                    [1.5, 2.5, 3.5, 4.5]
+                )
+
+            st.divider()
+
+            # =================================================
+            # TEAM STATS
+            # =================================================
+            st.markdown("### 📊 Team Statistics")
 
             stats_df = pd.DataFrame({
-                "Statistik": [
-                    "Snitt hörnor FOR",
-                    "Snitt hörnor AGAINST",
-                    "Snitt kort FOR",
-                    "Snitt kort AGAINST"
+
+                "Stat": [
+                    "Corners For",
+                    "Corners Against",
+
+                    "Cards For",
+                    "Cards Against",
+
+                    "Goals For",
+                    "Goals Against"
                 ],
 
-                h_team: [
+                match['home']: [
+
                     hs['avg_corners_for'],
                     hs['avg_corners_against'],
+
                     hs['avg_cards_for'],
-                    hs['avg_cards_against']
+                    hs['avg_cards_against'],
+
+                    hs['avg_goals_for'],
+                    hs['avg_goals_against']
                 ],
 
-                a_team: [
+                match['away']: [
+
                     ast['avg_corners_for'],
                     ast['avg_corners_against'],
+
                     ast['avg_cards_for'],
-                    ast['avg_cards_against']
+                    ast['avg_cards_against'],
+
+                    ast['avg_goals_for'],
+                    ast['avg_goals_against']
                 ]
             })
 
@@ -404,14 +453,10 @@ if calculate_btn:
                 hide_index=True
             )
 
-    except Exception as e:
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        st.error(
-            f"Ett fel uppstod vid analysen: {e}"
-        )
+    # REMOVE MATCH
+    if remove_index is not None:
 
-else:
-
-    st.info(
-        "Välj en liga och två lag i menyn till vänster för att starta analysen."
-    )
+        st.session_state.matches.pop(remove_index)
+        st.rerun()
