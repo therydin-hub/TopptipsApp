@@ -166,22 +166,78 @@ def get_league_stats(url):
 
         try:
 
+            # ==============================
             # CORNERS
-            hc = float(row.get("HC", 0))
-            ac = float(row.get("AC", 0))
+            # ==============================
+            hc = (
+                float(row.get("HC"))
+                if pd.notna(row.get("HC"))
+                else 0
+            )
 
+            ac = (
+                float(row.get("AC"))
+                if pd.notna(row.get("AC"))
+                else 0
+            )
+
+            # ==============================
             # CARDS
-            hy = float(row.get("HY", 0))
-            hr = float(row.get("HR", 0))
+            # ==============================
+            hy = (
+                float(row.get("HY"))
+                if pd.notna(row.get("HY"))
+                else 0
+            )
 
-            ay = float(row.get("AY", 0))
-            ar = float(row.get("AR", 0))
+            hr = (
+                float(row.get("HR"))
+                if pd.notna(row.get("HR"))
+                else 0
+            )
 
+            ay = (
+                float(row.get("AY"))
+                if pd.notna(row.get("AY"))
+                else 0
+            )
+
+            ar = (
+                float(row.get("AR"))
+                if pd.notna(row.get("AR"))
+                else 0
+            )
+
+            # ==============================
             # GOALS
-            hg = float(row.get("FTHG", 0))
-            ag = float(row.get("FTAG", 0))
+            # ==============================
+            hg_val = (
+                row.get("FTHG")
+                if pd.notna(row.get("FTHG"))
+                else row.get("HG")
+            )
 
+            ag_val = (
+                row.get("FTAG")
+                if pd.notna(row.get("FTAG"))
+                else row.get("AG")
+            )
+
+            hg = (
+                float(hg_val)
+                if pd.notna(hg_val)
+                else 0
+            )
+
+            ag = (
+                float(ag_val)
+                if pd.notna(ag_val)
+                else 0
+            )
+
+            # ==============================
             # HOME
+            # ==============================
             team_stats[h]["corners_for"].append(hc)
             team_stats[h]["corners_against"].append(ac)
 
@@ -191,7 +247,9 @@ def get_league_stats(url):
             team_stats[h]["goals_for"].append(hg)
             team_stats[h]["goals_against"].append(ag)
 
+            # ==============================
             # AWAY
+            # ==============================
             team_stats[a]["corners_for"].append(ac)
             team_stats[a]["corners_against"].append(hc)
 
@@ -201,7 +259,7 @@ def get_league_stats(url):
             team_stats[a]["goals_for"].append(ag)
             team_stats[a]["goals_against"].append(hg)
 
-        except:
+        except Exception:
             continue
 
     final_stats = {}
@@ -331,7 +389,7 @@ with st.sidebar:
         })
 
 # =========================================================
-# NO MATCHES
+# EMPTY STATE
 # =========================================================
 if len(st.session_state.matches) == 0:
 
@@ -404,7 +462,7 @@ for idx, match in enumerate(st.session_state.matches):
     )
 
     # =====================================================
-    # EXPANDER
+    # MATCH DISPLAY
     # =====================================================
     with st.expander(
         f"{match['home']} vs {match['away']} | {match['league']}",
@@ -446,12 +504,7 @@ for idx, match in enumerate(st.session_state.matches):
         c1, c2, c3 = st.columns(3)
 
         with c1:
-
-            st.markdown(
-                '<div class="sub-market">TOTAL</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader("TOTAL")
             st.dataframe(
                 build_market_table(
                     exp_total_corners,
@@ -462,12 +515,7 @@ for idx, match in enumerate(st.session_state.matches):
             )
 
         with c2:
-
-            st.markdown(
-                f'<div class="sub-market">{match["home"].upper()}</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader(match["home"].upper())
             st.dataframe(
                 build_market_table(
                     exp_home_corners,
@@ -478,12 +526,7 @@ for idx, match in enumerate(st.session_state.matches):
             )
 
         with c3:
-
-            st.markdown(
-                f'<div class="sub-market">{match["away"].upper()}</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader(match["away"].upper())
             st.dataframe(
                 build_market_table(
                     exp_away_corners,
@@ -506,12 +549,7 @@ for idx, match in enumerate(st.session_state.matches):
         c1, c2, c3 = st.columns(3)
 
         with c1:
-
-            st.markdown(
-                '<div class="sub-market">TOTAL</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader("TOTAL")
             st.dataframe(
                 build_market_table(
                     exp_total_cards,
@@ -522,12 +560,7 @@ for idx, match in enumerate(st.session_state.matches):
             )
 
         with c2:
-
-            st.markdown(
-                f'<div class="sub-market">{match["home"].upper()}</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader(match["home"].upper())
             st.dataframe(
                 build_market_table(
                     exp_home_cards,
@@ -538,12 +571,7 @@ for idx, match in enumerate(st.session_state.matches):
             )
 
         with c3:
-
-            st.markdown(
-                f'<div class="sub-market">{match["away"].upper()}</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader(match["away"].upper())
             st.dataframe(
                 build_market_table(
                     exp_away_cards,
@@ -566,12 +594,7 @@ for idx, match in enumerate(st.session_state.matches):
         c1, c2, c3 = st.columns(3)
 
         with c1:
-
-            st.markdown(
-                '<div class="sub-market">TOTAL</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader("TOTAL")
             st.dataframe(
                 build_market_table(
                     exp_total_goals,
@@ -582,12 +605,7 @@ for idx, match in enumerate(st.session_state.matches):
             )
 
         with c2:
-
-            st.markdown(
-                f'<div class="sub-market">{match["home"].upper()}</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader(match["home"].upper())
             st.dataframe(
                 build_market_table(
                     exp_home_goals,
@@ -598,12 +616,7 @@ for idx, match in enumerate(st.session_state.matches):
             )
 
         with c3:
-
-            st.markdown(
-                f'<div class="sub-market">{match["away"].upper()}</div>',
-                unsafe_allow_html=True
-            )
-
+            st.subheader(match["away"].upper())
             st.dataframe(
                 build_market_table(
                     exp_away_goals,
@@ -626,37 +639,28 @@ for idx, match in enumerate(st.session_state.matches):
         stats_df = pd.DataFrame({
 
             "Stat": [
-
                 "Corners For",
                 "Corners Against",
-
                 "Cards For",
                 "Cards Against",
-
                 "Goals For",
                 "Goals Against"
             ],
 
             match["home"]: [
-
                 hs["avg_corners_for"],
                 hs["avg_corners_against"],
-
                 hs["avg_cards_for"],
                 hs["avg_cards_against"],
-
                 hs["avg_goals_for"],
                 hs["avg_goals_against"]
             ],
 
             match["away"]: [
-
                 ast["avg_corners_for"],
                 ast["avg_corners_against"],
-
                 ast["avg_cards_for"],
                 ast["avg_cards_against"],
-
                 ast["avg_goals_for"],
                 ast["avg_goals_against"]
             ]
