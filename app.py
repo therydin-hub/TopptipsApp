@@ -106,18 +106,35 @@ LEAGUE_MAP = {
 @st.cache_data(ttl=3600)
 def get_league_stats(url):
 
-    df = pd.read_csv(
-        url,
-        encoding="unicode_escape",
-        on_bad_lines="skip"
+    # Specialhantering för Sverige/Danmark
+if 'SWE.csv' in url or 'DNK.csv' in url:
+
+    df['parsed_date'] = pd.to_datetime(
+        df['Date'],
+        dayfirst=True,
+        errors='coerce'
     )
+
+    df = df[
+        df['parsed_date'].dt.year ==
+        datetime.datetime.now().year
+    ]
 
     team_stats = {}
 
     for _, row in df.iterrows():
 
-        h = row.get("HomeTeam")
-        a = row.get("AwayTeam")
+        h = (
+    row.get("HomeTeam")
+    if pd.notna(row.get("HomeTeam"))
+    else row.get("Home")
+)
+
+a = (
+    row.get("AwayTeam")
+    if pd.notna(row.get("AwayTeam"))
+    else row.get("Away")
+)
 
         if pd.isna(h) or pd.isna(a):
             continue
